@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server"
+import { generateAIInsights } from "./dashboard";
 
 
 export async function updateUser(data) {
@@ -14,7 +15,7 @@ export async function updateUser(data) {
         },
     });
 
-    if(!user) throw new Error("User not found");
+    if (!user) throw new Error("User not found");
 
     try {
         const result = await db.$transaction(
@@ -28,22 +29,18 @@ export async function updateUser(data) {
 
                 // if industry doesn't exist, create it with default values - will replace it with ai later
                 if (!industryInsight) {
-                    industryInsight = await tx.industryInsight.create({
+                    const insights = await generateAIInsights(data.industry);
+
+                    industryInsight = await db.industryInsight.create({
                         data: {
                             industry: data.industry,
-                            salaryRanges: [],
-                            growthRate: 0,
-                            demandLevel: "Medium",
-                            topSkills: [],
-                            marketOutlook: "Neutral",
-                            keyTrends: [],
-                            recommendedSkills: [],
+                            ...insights,
                             nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                         },
                     });
                 }
                 // update the user
-                const updatesUser = await tx.user.update({
+                const updatedUser = await tx.user.update({
                     where: {
                         id: user.id,
                     },
@@ -55,14 +52,17 @@ export async function updateUser(data) {
                     },
                 });
 
-                return {updateUser, industryInsight};
+                return { updatedUser, industryInsight };
             },
             {
-                timeout: 10000, 
+                timeout: 10000,
             }
-        ); 
+        );
+
+        return { success: true, ...result };
     } catch (error) {
-        
+        console.error("Error updating user and industry:", error.message);
+        throw new Error("Failed to update profile" + error.message)
     }
 }
 
@@ -76,7 +76,7 @@ export async function getUserOnboardingStatus() {
         },
     });
 
-    if(!user) throw new Error("User not found");
+    if (!user) throw new Error("User not found");
 
     try {
         const user = await db.user.findUnique({

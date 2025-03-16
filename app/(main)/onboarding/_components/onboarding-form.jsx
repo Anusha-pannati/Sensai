@@ -4,15 +4,17 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { onboardingSchema } from "@/app/lib/schema";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import useFetch from "@/hooks/use-fetch";
 import { updateUser } from "@/actions/user";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const OnboardingForm = ({ industries }) => {
 
@@ -35,13 +37,29 @@ const OnboardingForm = ({ industries }) => {
     resolver: zodResolver(onboardingSchema),
   });
 
-  const onSubmit = async (values) => {
-    console.log("🚀 Submitting form...");  // Debugging log
-    console.log("Form Values:", values);   // Log values
-    alert("Form submitted! Check console.");
+  const onSubmit = async (values) => { 
+    try {
+      const formattedIndustry = `${values.industry}-${values.subIndustry
+        .toLowerCase()
+        .replace(/ /g, "-")
+      }`;
+
+      await updateUserFn({
+        ...values,
+        industry: formattedIndustry,
+      });
+    } catch (error) {
+      console.error("Onboarding error:", error);
+    }
   };
 
-
+  useEffect(() => {
+    if (updateResult?.success && !updateLoading) {
+      toast.success("Profile completed successfully!");
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }, [updateResult, updateLoading]);
 
   const watchIndustry = watch("industry");
 
@@ -57,7 +75,6 @@ const OnboardingForm = ({ industries }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-        {console.log("📢 Form component is rendering")}
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <Label htmlFor="industry">Industry</Label>
@@ -74,12 +91,13 @@ const OnboardingForm = ({ industries }) => {
                   <SelectValue placeholder="Select an industry" />
                 </SelectTrigger>
                 <SelectContent>
-                  {industries.map((ind) => (
-                    <SelectItem value={ind.id} key={ind.id}>
-                      {ind.name}
-                    </SelectItem>
-
-                  ))}
+                  {industries.map((ind) => {
+                    return (
+                      <SelectItem value={ind.id} key={ind.id}>
+                        {ind.name}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {
@@ -101,16 +119,13 @@ const OnboardingForm = ({ industries }) => {
                     <SelectValue placeholder="Select a subIndustry" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Specializations</SelectLabel>
-                      {selectedIndustry?.subIndustries.map((ind) => (
-
+                    {selectedIndustry?.subIndustries.map((ind) => {
+                      return (
                         <SelectItem value={ind} key={ind}>
                           {ind}
                         </SelectItem>
-
-                      ))}
-                    </SelectGroup>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {
@@ -162,7 +177,7 @@ const OnboardingForm = ({ industries }) => {
                   </p>
                 )
               }
-            </div>
+            </div> 
 
             <div className="space-y-2">
               <Label htmlFor="bio">Professional Bio</Label>
@@ -180,10 +195,17 @@ const OnboardingForm = ({ industries }) => {
                   </p>
                 )
               }
-            </div>
+            </div> 
 
-            <Button type="submit" className="w-full">
-              Complete Profile
+            <Button type="submit" className="w-full" disabled={updateLoading}>
+              {updateLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                  Saving...
+                </>
+              ) : (
+                "Complete Profile"
+              )}
             </Button>
           </form>
         </CardContent>
